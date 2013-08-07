@@ -13,7 +13,7 @@ class RepositoryHelper_normalizeRepository_Test extends TestCase
 	{
 		$r = new TestsRepository(new RepositoryContainer);
 		$h = new RepositoryHelper;
-		$this->assertSame('tests', $h->normalizeRepository($r));
+		$this->assertSame('Tests', $h->normalizeRepository($r));
 	}
 
 	public function testNamespace()
@@ -25,7 +25,7 @@ class RepositoryHelper_normalizeRepository_Test extends TestCase
 		$c = 'Repository_createMapper\Repository_createMapperRepository'; // aby nebyl parse error v php52
 		$r = new $c(new RepositoryContainer);
 		$h = new RepositoryHelper;
-		$this->assertSame('repository_createmapper\repository_createmapper', $h->normalizeRepository($r));
+		$this->assertSame('Repository_createMapper\Repository_createMapper', $h->normalizeRepository($r));
 	}
 
 	public function testReflection()

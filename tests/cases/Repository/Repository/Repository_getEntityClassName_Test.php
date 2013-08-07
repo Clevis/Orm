@@ -24,8 +24,8 @@ class Repository_getEntityClassName_Test extends TestCase
 	public function testDefault()
 	{
 		$this->r->entityClassName = NULL;
-		$this->assertSame('repository_getentityclassname', $this->r->getEntityClassName());
-		$this->assertSame('repository_getentityclassname', $this->r->getEntityClassName(array()));
+		$this->assertSame('Repository_getEntityClassName', $this->r->getEntityClassName());
+		$this->assertSame('Repository_getEntityClassName', $this->r->getEntityClassName(array()));
 	}
 
 	public function testNamespace()
@@ -37,8 +37,8 @@ class Repository_getEntityClassName_Test extends TestCase
 		$c = 'Repository_createMapper\Repository_createMapperRepository'; // aby nebyl parse error v php52
 		$r = new $c(new RepositoryContainer);
 		$r->entityClassName = NULL;
-		$this->assertSame('repository_createmapper\repository_createmapper', $r->getEntityClassName());
-		$this->assertSame('repository_createmapper\repository_createmapper', $r->getEntityClassName(array()));
+		$this->assertSame('Repository_createMapper\Repository_createMapper', $r->getEntityClassName());
+		$this->assertSame('Repository_createMapper\Repository_createMapper', $r->getEntityClassName(array()));
 	}
 
 	public function testInflector()

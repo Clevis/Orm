@@ -74,7 +74,7 @@ class DibiPersistenceHelper extends Object
 	{
 		$this->connection = $connection;
 		$this->conventional = $conventional;
-		$this->table = $table;
+		$this->table = strtolower($table);
 		$this->events = $events;
 		$this->primaryKey = $conventional->getPrimaryKey();
 	}
