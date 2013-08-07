@@ -1,0 +1,32 @@
+{
+    "name": "clevis/orm",
+	"type": "petrp-orm",
+    "description": "ORM",
+    "keywords": ["orm", "database"],
+    "homepage": "http://orm.petrprochazka.com",
+    "license": "BSD-3-Clause",
+    "authors": [
+        {
+            "name": "Petr Procházka",
+            "homepage": "http://petrprochazka.com"
+        }
+    ],
+
+    "autoload": {
+        "classmap": ["Orm/"]
+    },
+
+	"require": {
+		"php": ">= 5.3.7",
+		"dg/dibi": "2.1.*",
+		"nette/nette": "@dev",
+		"clevis/orm-installer": "dev-master"
+	},
+
+	"repositories": [
+		{
+			"type": "vcs",
+			"url": "https://github.com/Clevis/OrmInstaller.git"
+		}
+	]
+}
