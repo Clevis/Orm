@@ -146,7 +146,19 @@ abstract class RelationshipMetaData extends Object
 					}
 					if (!isset($loader->canConnectWith[$this->parentEntityName]))
 					{
-						throw new RelationshipLoaderException("{$this->parentEntityName}::\${$this->parentParam} {{$this->type}} na druhe strane asociace {$en}::\${$this->childParam} neukazuje zpet; ukazuje na jiny repository ({$loader->repository})");
+						$isAncestor = FALSE;
+						foreach ($loader->canConnectWith as $class)
+						{
+							if (class_exists($class) && is_subclass_of($this->parentEntityName, $class))
+							{
+								$isAncestor = TRUE;
+								break;
+							}
+						}
+						if (!$isAncestor)
+						{
+							throw new RelationshipLoaderException("{$this->parentEntityName}::\${$this->parentParam} {{$this->type}} na druhe strane asociace {$en}::\${$this->childParam} neukazuje zpet; ukazuje na jiny repository ({$loader->repository})");
+						}
 					}
 					if ($loader->childParam AND $loader->childParam !== $this->parentParam)
 					{
