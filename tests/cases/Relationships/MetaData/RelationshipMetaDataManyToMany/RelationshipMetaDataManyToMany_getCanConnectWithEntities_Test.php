@@ -17,7 +17,7 @@ class RelationshipMetaDataManyToMany_getCanConnectWithEntities_Test extends Test
 		$meta = $meta['manyToMany1']['relationshipParam'];
 		$this->assertInstanceOf('Orm\RelationshipMetaDataManyToMany', $meta);
 		$this->assertSame(array(
-			'association_entity' => 'Association_Entity',
+			'Association_Entity' => 'Association_Entity',
 		), $meta->getCanConnectWithEntities($r));
 	}
 

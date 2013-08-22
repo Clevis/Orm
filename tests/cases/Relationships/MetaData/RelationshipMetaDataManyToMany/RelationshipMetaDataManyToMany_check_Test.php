@@ -95,16 +95,6 @@ class RelationshipMetaDataManyToMany_check_Test extends TestCase
 		}
 	}
 
-	public function testIgnoreCase()
-	{
-		$ecn = & RelationshipMetaDataManyToMany_ManyToMany2_Repository::$ecn;
-		$old = $ecn;
-		$ecn = strtoupper($ecn);
-		$loader = $this->t('many');
-		$this->assertInstanceOf('Orm\RelationshipMetaDataManyToMany', $loader);
-		$ecn = $old;
-	}
-
 	public function testMultiUse()
 	{
 		MetaData::clean();

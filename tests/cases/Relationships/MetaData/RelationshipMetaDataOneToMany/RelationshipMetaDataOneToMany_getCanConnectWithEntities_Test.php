@@ -17,8 +17,8 @@ class RelationshipMetaDataOneToMany_getCanConnectWithEntities_Test extends TestC
 		$meta = $meta['many']['relationshipParam'];
 		$this->assertInstanceOf('Orm\RelationshipMetaDataOneToMany', $meta);
 		$this->assertSame(array(
-			'onetomany_entity' => 'OneToMany_Entity',
-			'onetomany_entity2' => 'OneToMany_Entity2',
+			'OneToMany_Entity' => 'OneToMany_Entity',
+			'OneToMany_Entity2' => 'OneToMany_Entity2',
 		), $meta->getCanConnectWithEntities($r));
 	}
 

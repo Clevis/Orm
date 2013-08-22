@@ -17,7 +17,7 @@ class RelationshipMetaDataManyToOne_getCanConnectWithEntities_Test extends TestC
 		$meta = $meta['param']['relationshipParam'];
 		$this->assertInstanceOf('Orm\RelationshipMetaDataManyToOne', $meta);
 		$this->assertSame(array(
-			'onetomanyx_entity' => 'OneToManyX_Entity',
+			'OneToManyX_Entity' => 'OneToManyX_Entity',
 		), $meta->getCanConnectWithEntities($r));
 	}
 

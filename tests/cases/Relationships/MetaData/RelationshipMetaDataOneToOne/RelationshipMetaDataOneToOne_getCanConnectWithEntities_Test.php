@@ -17,7 +17,7 @@ class RelationshipMetaDataOneToOne_getCanConnectWithEntities_Test extends TestCa
 		$meta = $meta['oneToOne1']['relationshipParam'];
 		$this->assertInstanceOf('Orm\RelationshipMetaDataOneToOne', $meta);
 		$this->assertSame(array(
-			'association_entity' => 'Association_Entity',
+			'Association_Entity' => 'Association_Entity',
 		), $meta->getCanConnectWithEntities($r));
 	}
 

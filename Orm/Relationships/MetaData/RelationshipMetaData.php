@@ -124,11 +124,10 @@ abstract class RelationshipMetaData extends Object
 	 */
 	protected function checkIntegrity(IRepositoryContainer $model, $expectedType, $requiredChildParam, $callback = NULL)
 	{
-		$lowerEntityName = strtolower($this->parentEntityName);
 		$classes = array_values((array) $model->getRepository($this->childRepository)->getEntityClassName());
-		$this->canConnectWith = array_combine(array_map('strtolower', $classes), $classes);
+		$this->canConnectWith = array_combine($classes, $classes);
 		if (!$this->childParam) return;
-		foreach ($this->canConnectWith as $lowerEn => $en)
+		foreach ($this->canConnectWith as $en)
 		{
 			$meta = MetaData::getEntityRules($en, $model, $this->childParam);
 			$e = NULL;
@@ -145,7 +144,7 @@ abstract class RelationshipMetaData extends Object
 					{
 						throw new RelationshipLoaderException("{$this->parentEntityName}::\${$this->parentParam} {{$this->type}} na druhe strane asociace {$en}::\${$this->childParam} neni vyplnen param ktery by ukazoval zpet");
 					}
-					if (!isset($loader->canConnectWith[$lowerEntityName]))
+					if (!isset($loader->canConnectWith[$this->parentEntityName]))
 					{
 						throw new RelationshipLoaderException("{$this->parentEntityName}::\${$this->parentParam} {{$this->type}} na druhe strane asociace {$en}::\${$this->childParam} neukazuje zpet; ukazuje na jiny repository ({$loader->repository})");
 					}
@@ -157,7 +156,7 @@ abstract class RelationshipMetaData extends Object
 					continue;
 				} catch (Exception $e) {}
 			}
-			unset($this->canConnectWith[$lowerEn]);
+			unset($this->canConnectWith[$en]);
 			if ($e) throw $e;
 		}
 		if (!$this->canConnectWith)
