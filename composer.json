@@ -19,7 +19,7 @@
 	"require": {
 		"php": ">= 5.3.7",
 		"dg/dibi": "2.1.*",
-		"nette/nette": "@dev",
+		"nette/nette": "2.1.*",
 		"clevis/orm-installer": "dev-master"
 	},
 
