@@ -18,15 +18,7 @@
 
 	"require": {
 		"php": ">= 5.3.7",
-		"dg/dibi": "2.1.*",
-		"nette/nette": "2.1.*",
-		"clevis/orm-installer": "dev-master"
-	},
-
-	"repositories": [
-		{
-			"type": "vcs",
-			"url": "https://github.com/Clevis/OrmInstaller.git"
-		}
-	]
+		"dg/dibi": "~2.1",
+		"nette/nette": "~2.1"
+	}
 }
