@@ -2,6 +2,7 @@
 
 use Orm\MetaData;
 use Orm\RepositoryContainer;
+use Orm\RelationshipMetaDataManyToMany;
 
 
 /**
@@ -18,6 +19,15 @@ class RelationshipMetaDataManyToMany_getCanConnectWithEntities_Test extends Test
 		$this->assertInstanceOf('Orm\RelationshipMetaDataManyToMany', $meta);
 		$this->assertSame(array(
 			'Association_Entity' => 'Association_Entity',
+		), $meta->getCanConnectWithEntities($r));
+	}
+
+	public function test2()
+	{
+		$r = new RepositoryContainer;
+		$meta = new RelationshipMetaDataManyToMany('Association_Entity', 'manyToMany1', 'Association_Repository', 'manyToMany2', NULL, true);
+		$this->assertSame(array(
+			'association_entity' => 'Association_Entity',
 		), $meta->getCanConnectWithEntities($r));
 	}
 

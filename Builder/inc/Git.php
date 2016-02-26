@@ -74,7 +74,7 @@ class Git extends Object
 
 	public function getSha($input)
 	{
-		return $this->command("log ".$this->escape($input)." -1 --pretty=format:" . $this->escape('%H', true));
+		return trim($this->command('rev-parse ' . $this->escape($input)));
 	}
 
 	/**
@@ -83,7 +83,7 @@ class Git extends Object
 	 * @param bool escapeshellarg na windows nahrazuje % mezerou, protoze nelze escapovat, format v gitu ale procento pouziva proto je potreba ho ignorovat
 	 * @return string
 	 */
-	private function escape($arg, $escapePercent = false)
+	public function escape($arg, $escapePercent = false)
 	{
 		if ($escapePercent)
 		{

@@ -38,6 +38,8 @@ if (!defined('PHP_VERSION_ID'))
 }
 
 php52§*/
+if (isset(${'Orm\Orm::$require'})) return;
+
 require_once __DIR__ . '/Common/Object.php';
 require_once __DIR__ . '/Common/ObjectMixin.php';
 require_once __DIR__ . '/Common/Callback.php';
@@ -153,6 +155,8 @@ require_once __DIR__ . '/Mappers/Collection/DataSourceCollection.php';
 require_once __DIR__ . '/Mappers/Collection/Helpers/HydrateEntityIterator.php';
 require_once __DIR__ . '/Mappers/Collection/Helpers/FetchAssoc.php';
 require_once __DIR__ . '/Mappers/Collection/Helpers/FindByHelper.php';
+require_once __DIR__ . '/Mappers/Collection/Helpers/DibiResultWrapper.php';
+require_once __DIR__ . '/Mappers/Collection/Helpers/DibiResultWrapperIterator.php';
 
 require_once __DIR__ . '/Relationships/IRelationship.php';
 require_once __DIR__ . '/Relationships/BaseToMany.php';

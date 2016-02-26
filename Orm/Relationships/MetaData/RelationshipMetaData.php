@@ -146,19 +146,17 @@ abstract class RelationshipMetaData extends Object
 					}
 					if (!isset($loader->canConnectWith[$this->parentEntityName]))
 					{
-						$isAncestor = FALSE;
-						foreach ($loader->canConnectWith as $class)
-						{
-							if (class_exists($class) && is_subclass_of($this->parentEntityName, $class))
+						do {
+							foreach ($loader->canConnectWith as $canConnectWithEntity)
 							{
-								$isAncestor = TRUE;
-								break;
+								if (is_subclass_of($canConnectWithEntity, $this->parentEntityName))
+								{
+									break 2; // goto canConnect;
+								}
 							}
-						}
-						if (!$isAncestor)
-						{
 							throw new RelationshipLoaderException("{$this->parentEntityName}::\${$this->parentParam} {{$this->type}} na druhe strane asociace {$en}::\${$this->childParam} neukazuje zpet; ukazuje na jiny repository ({$loader->repository})");
-						}
+						} while (false);
+						// canConnect:
 					}
 					if ($loader->childParam AND $loader->childParam !== $this->parentParam)
 					{

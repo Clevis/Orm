@@ -10,7 +10,6 @@
  */
 
 
-
 /**
  * dibi result set.
  *
@@ -54,9 +53,11 @@ class DibiResult extends DibiObject implements IDataSource
 	/** @var string  returned object class */
 	private $rowClass = 'DibiRow';
 
+	/** @var Callback  returned object factory*/
+	private $rowFactory;
+
 	/** @var array  format */
 	private $formats = array();
-
 
 
 	/**
@@ -69,7 +70,6 @@ class DibiResult extends DibiObject implements IDataSource
 	}
 
 
-
 	/**
 	 * @deprecated
 	 */
@@ -77,7 +77,6 @@ class DibiResult extends DibiObject implements IDataSource
 	{
 		return $this->getResultDriver()->getResultResource();
 	}
-
 
 
 	/**
@@ -91,7 +90,6 @@ class DibiResult extends DibiObject implements IDataSource
 			$this->driver = $this->meta = NULL;
 		}
 	}
-
 
 
 	/**
@@ -109,9 +107,7 @@ class DibiResult extends DibiObject implements IDataSource
 	}
 
 
-
 	/********************* rows ****************d*g**/
-
 
 
 	/**
@@ -126,7 +122,6 @@ class DibiResult extends DibiObject implements IDataSource
 	}
 
 
-
 	/**
 	 * Required by the Countable interface.
 	 * @return int
@@ -135,7 +130,6 @@ class DibiResult extends DibiObject implements IDataSource
 	{
 		return $this->getResultDriver()->getRowCount();
 	}
-
 
 
 	/**
@@ -148,7 +142,6 @@ class DibiResult extends DibiObject implements IDataSource
 	}
 
 
-
 	/**
 	 * Returns the number of rows in a result set. Alias for getRowCount().
 	 * @deprecated
@@ -158,7 +151,6 @@ class DibiResult extends DibiObject implements IDataSource
 		trigger_error(__METHOD__ . '() is deprecated; use count($res) or $res->getRowCount() instead.', E_USER_WARNING);
 		return $this->getResultDriver()->getRowCount();
 	}
-
 
 
 	/**
@@ -174,22 +166,19 @@ class DibiResult extends DibiObject implements IDataSource
 	}
 
 
-
 	/********************* fetching rows ****************d*g**/
-
 
 
 	/**
 	 * Set fetched object class. This class should extend the DibiRow class.
 	 * @param  string
-	 * @return DibiResult  provides a fluent interface
+	 * @return self
 	 */
 	public function setRowClass($class)
 	{
 		$this->rowClass = $class;
 		return $this;
 	}
-
 
 
 	/**
@@ -201,6 +190,17 @@ class DibiResult extends DibiObject implements IDataSource
 		return $this->rowClass;
 	}
 
+
+	/**
+	 * Set a factory to create fetched object instances. These should extend the DibiRow class.
+	 * @param  callback
+	 * @return self
+	 */
+	public function setRowFactory($callback)
+	{
+		$this->rowFactory = $callback;
+		return $this;
+	}
 
 
 	/**
@@ -216,12 +216,13 @@ class DibiResult extends DibiObject implements IDataSource
 		}
 		$this->fetched = TRUE;
 		$this->normalize($row);
-		if ($this->rowClass) {
+		if ($this->rowFactory) {
+			return call_user_func($this->rowFactory, $row);
+		} elseif ($this->rowClass) {
 			$row = new $this->rowClass($row);
 		}
 		return $row;
 	}
-
 
 
 	/**
@@ -240,7 +241,6 @@ class DibiResult extends DibiObject implements IDataSource
 	}
 
 
-
 	/**
 	 * Fetches all records from table.
 	 * @param  int  offset
@@ -252,18 +252,21 @@ class DibiResult extends DibiObject implements IDataSource
 		$limit = $limit === NULL ? -1 : (int) $limit;
 		$this->seek((int) $offset);
 		$row = $this->fetch();
-		if (!$row) return array();  // empty result set
+		if (!$row) {
+			return array();  // empty result set
+		}
 
 		$data = array();
 		do {
-			if ($limit === 0) break;
+			if ($limit === 0) {
+				break;
+			}
 			$limit--;
 			$data[] = $row;
 		} while ($row = $this->fetch());
 
 		return $data;
 	}
-
 
 
 	/**
@@ -285,7 +288,9 @@ class DibiResult extends DibiObject implements IDataSource
 
 		$this->seek(0);
 		$row = $this->fetch();
-		if (!$row) return array();  // empty result set
+		if (!$row) {
+			return array();  // empty result set
+		}
 
 		$data = NULL;
 		$assoc = preg_split('#(\[\]|->|=|\|)#', $assoc, NULL, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
@@ -344,7 +349,6 @@ class DibiResult extends DibiObject implements IDataSource
 	}
 
 
-
 	/**
 	 * @deprecated
 	 */
@@ -352,7 +356,9 @@ class DibiResult extends DibiObject implements IDataSource
 	{
 		$this->seek(0);
 		$row = $this->fetch();
-		if (!$row) return array();  // empty result set
+		if (!$row) {
+			return array();  // empty result set
+		}
 
 		$data = NULL;
 		$assoc = explode(',', $assoc);
@@ -417,7 +423,6 @@ class DibiResult extends DibiObject implements IDataSource
 	}
 
 
-
 	/**
 	 * Fetches all records from table like $key => $value pairs.
 	 * @param  string  associative key
@@ -429,7 +434,9 @@ class DibiResult extends DibiObject implements IDataSource
 	{
 		$this->seek(0);
 		$row = $this->fetch();
-		if (!$row) return array();  // empty result set
+		if (!$row) {
+			return array();  // empty result set
+		}
 
 		$data = array();
 
@@ -468,16 +475,14 @@ class DibiResult extends DibiObject implements IDataSource
 		}
 
 		do {
-			$data[ $row[$key] ] = $row[$value];
+			$data[ (string) $row[$key] ] = $row[$value];
 		} while ($row = $this->fetch());
 
 		return $data;
 	}
 
 
-
 	/********************* column types ****************d*g**/
-
 
 
 	/**
@@ -493,7 +498,6 @@ class DibiResult extends DibiObject implements IDataSource
 			}
 		} catch (DibiNotSupportedException $e) {}
 	}
-
 
 
 	/**
@@ -514,13 +518,13 @@ class DibiResult extends DibiObject implements IDataSource
 				$row[$key] = is_float($tmp = $value * 1) ? $value : $tmp;
 
 			} elseif ($type === dibi::FLOAT) {
-				$row[$key] = (string) ($tmp = (float) $value) === $value ? $tmp : $value;
+				$row[$key] = (string) ($tmp = (float) $value) === rtrim(rtrim($value, '0'), '.') ? $tmp : $value;
 
 			} elseif ($type === dibi::BOOL) {
 				$row[$key] = ((bool) $value) && $value !== 'f' && $value !== 'F';
 
 			} elseif ($type === dibi::DATE || $type === dibi::DATETIME) {
-				if ((int) $value === 0) { // '', NULL, FALSE, '0000-00-00', ...
+				if ((int) $value === 0 && substr((string) $value, 0, 3) !== '00:') { // '', NULL, FALSE, '0000-00-00', ...
 
 				} elseif (empty($this->formats[$type])) { // return DateTime object (default)
 					$row[$key] = new DibiDateTime(is_numeric($value) ? date('Y-m-d H:i:s', $value) : $value);
@@ -543,19 +547,17 @@ class DibiResult extends DibiObject implements IDataSource
 	}
 
 
-
 	/**
 	 * Define column type.
 	 * @param  string  column
 	 * @param  string  type (use constant Dibi::*)
-	 * @return DibiResult  provides a fluent interface
+	 * @return self
 	 */
 	final public function setType($col, $type)
 	{
 		$this->types[$col] = $type;
 		return $this;
 	}
-
 
 
 	/**
@@ -568,19 +570,17 @@ class DibiResult extends DibiObject implements IDataSource
 	}
 
 
-
 	/**
 	 * Sets data format.
 	 * @param  string  type (use constant Dibi::*)
 	 * @param  string  format
-	 * @return DibiResult  provides a fluent interface
+	 * @return self
 	 */
 	final public function setFormat($type, $format)
 	{
 		$this->formats[$type] = $format;
 		return $this;
 	}
-
 
 
 	/**
@@ -593,9 +593,7 @@ class DibiResult extends DibiObject implements IDataSource
 	}
 
 
-
 	/********************* meta info ****************d*g**/
-
 
 
 	/**
@@ -611,7 +609,6 @@ class DibiResult extends DibiObject implements IDataSource
 	}
 
 
-
 	/**
 	 * @deprecated
 	 */
@@ -619,7 +616,6 @@ class DibiResult extends DibiObject implements IDataSource
 	{
 		return $this->getInfo()->getColumns();
 	}
-
 
 
 	/** @deprecated */
@@ -630,43 +626,74 @@ class DibiResult extends DibiObject implements IDataSource
 	}
 
 
-
 	/********************* misc tools ****************d*g**/
 
 
-
 	/**
-	 * Displays complete result set as HTML table for debug purposes.
+	 * Displays complete result set as HTML or text table for debug purposes.
 	 * @return void
 	 */
 	final public function dump()
 	{
 		$i = 0;
 		$this->seek(0);
-		while ($row = $this->fetch()) {
-			if ($i === 0) {
-				echo "\n<table class=\"dump\">\n<thead>\n\t<tr>\n\t\t<th>#row</th>\n";
-
-				foreach ($row as $col => $foo) {
-					echo "\t\t<th>" . htmlSpecialChars($col) . "</th>\n";
+		if (PHP_SAPI === 'cli') {
+			$hasColors = (substr(getenv('TERM'), 0, 5) === 'xterm');
+			$maxLen = 0;
+			while ($row = $this->fetch()) {
+				if ($i === 0) {
+					foreach ($row as $col => $foo) {
+						$len = mb_strlen($col);
+						$maxLen = max($len, $maxLen);
+					}
 				}
 
-				echo "\t</tr>\n</thead>\n<tbody>\n";
+				if ($hasColors) {
+					echo "\033[1;37m#row: $i\033[0m\n";
+				} else {
+					echo "#row: $i\n";
+				}
+
+				foreach ($row as $col => $val) {
+					$spaces = $maxLen - mb_strlen($col) + 2;
+					echo "$col" . str_repeat(" ", $spaces) .  "$val\n";
+				}
+
+				echo "\n";
+				$i++;
 			}
 
-			echo "\t<tr>\n\t\t<th>", $i, "</th>\n";
-			foreach ($row as $col) {
-				//if (is_object($col)) $col = $col->__toString();
-				echo "\t\t<td>", htmlSpecialChars($col), "</td>\n";
+			if ($i === 0) {
+				echo "empty result set\n";
 			}
-			echo "\t</tr>\n";
-			$i++;
-		}
+			echo "\n";
 
-		if ($i === 0) {
-			echo '<p><em>empty result set</em></p>';
 		} else {
-			echo "</tbody>\n</table>\n";
+			while ($row = $this->fetch()) {
+				if ($i === 0) {
+					echo "\n<table class=\"dump\">\n<thead>\n\t<tr>\n\t\t<th>#row</th>\n";
+
+					foreach ($row as $col => $foo) {
+						echo "\t\t<th>" . htmlSpecialChars($col) . "</th>\n";
+					}
+
+					echo "\t</tr>\n</thead>\n<tbody>\n";
+				}
+
+				echo "\t<tr>\n\t\t<th>", $i, "</th>\n";
+				foreach ($row as $col) {
+					//if (is_object($col)) $col = $col->__toString();
+					echo "\t\t<td>", htmlSpecialChars($col), "</td>\n";
+				}
+				echo "\t</tr>\n";
+				$i++;
+			}
+
+			if ($i === 0) {
+				echo '<p><em>empty result set</em></p>';
+			} else {
+				echo "</tbody>\n</table>\n";
+			}
 		}
 	}
 

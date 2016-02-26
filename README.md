@@ -10,9 +10,9 @@ Links
 * [Changelog](http://orm.petrprochazka.com/forum/forum/1/changelog)
 * [Download](http://orm.petrprochazka.com/download)
 * [API Documentation](http://orm.petrprochazka.com/api)
-* [Git](https://github.com/Clevisaci/Orm)
+* [Git](https://github.com/PetrP/Orm)
 * [Forum](http://orm.petrprochazka.com/forum)
-* [Issue Tracker](https://github.com/Clevisaci/Orm/issues)
+* [Issue Tracker](https://github.com/PetrP/Orm/issues)
 
 
 
@@ -30,6 +30,36 @@ PHP 5.3.3 is bogus. 5.2.0 - 5.2.5 is supported partialy.
 For reading annotation it requires [Nette Framework](http://nette.org/download).
 
 DibiMapper requires [Dibi](http://dibiphp.com/download).
+
+
+
+
+Installation
+------------
+
+You can download package or use Composer.
+
+#### Download
+
+http://orm.petrprochazka.com/download
+
+
+#### Composer
+
+composer.json:
+```
+{
+	"require": {
+		"petrp/orm": "0.4.*"
+	},
+	"repositories": [
+		{
+			"type": "composer",
+			"url": "http://orm.petrprochazka.com/composer"
+		}
+	]
+}
+```
 
 
 

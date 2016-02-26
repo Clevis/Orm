@@ -11,22 +11,20 @@
 
 
 /**
- * The dibi driver for Oracle database.
+ * The dibi driver interacting with databases via ODBC connections.
  *
  * Driver options:
- *   - database => the name of the local Oracle instance or the name of the entry in tnsnames.ora
+ *   - dsn => driver specific DSN
  *   - username (or user)
  *   - password (or pass)
- *   - charset => character encoding to set
- *   - formatDate => how to format date in SQL (@see date)
- *   - formatDateTime => how to format datetime in SQL (@see date)
+ *   - persistent (bool) => try to find a persistent link?
  *   - resource (resource) => existing connection resource
  *   - lazy, profiler, result, substitutes, ... => see DibiConnection options
  *
  * @author     David Grudl
  * @package    dibi\drivers
  */
-class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDriver, IDibiReflector
+class DibiOdbcDriver extends DibiObject implements IDibiDriver, IDibiResultDriver, IDibiReflector
 {
 	/** @var resource  Connection resource */
 	private $connection;
@@ -37,12 +35,11 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	/** @var bool */
 	private $autoFree = TRUE;
 
-	/** @var bool */
-	private $autocommit = TRUE;
+	/** @var int|FALSE  Affected rows */
+	private $affectedRows = FALSE;
 
-	/** @var string  Date and datetime format */
-	private $fmtDate, $fmtDateTime;
-
+	/** @var int  Cursor */
+	private $row = 0;
 
 
 	/**
@@ -50,11 +47,10 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function __construct()
 	{
-		if (!extension_loaded('oci8')) {
-			throw new DibiNotSupportedException("PHP extension 'oci8' is not loaded.");
+		if (!extension_loaded('odbc')) {
+			throw new DibiNotSupportedException("PHP extension 'odbc' is not loaded.");
 		}
 	}
-
 
 
 	/**
@@ -62,24 +58,29 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 * @return void
 	 * @throws DibiException
 	 */
-	public function connect(array &$config)
+	public function connect(array & $config)
 	{
-		$foo = & $config['charset'];
-		$this->fmtDate = isset($config['formatDate']) ? $config['formatDate'] : 'U';
-		$this->fmtDateTime = isset($config['formatDateTime']) ? $config['formatDateTime'] : 'U';
-
 		if (isset($config['resource'])) {
 			$this->connection = $config['resource'];
 		} else {
-			$this->connection = @oci_new_connect($config['username'], $config['password'], $config['database'], $config['charset']); // intentionally @
+			// default values
+			$config += array(
+				'username' => ini_get('odbc.default_user'),
+				'password' => ini_get('odbc.default_pw'),
+				'dsn' => ini_get('odbc.default_db'),
+			);
+
+			if (empty($config['persistent'])) {
+				$this->connection = @odbc_connect($config['dsn'], $config['username'], $config['password']); // intentionally @
+			} else {
+				$this->connection = @odbc_pconnect($config['dsn'], $config['username'], $config['password']); // intentionally @
+			}
 		}
 
-		if (!$this->connection) {
-			$err = oci_error();
-			throw new DibiDriverException($err['message'], $err['code']);
+		if (!is_resource($this->connection)) {
+			throw new DibiDriverException(odbc_errormsg() . ' ' . odbc_error());
 		}
 	}
-
 
 
 	/**
@@ -88,9 +89,8 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function disconnect()
 	{
-		oci_close($this->connection);
+		odbc_close($this->connection);
 	}
-
 
 
 	/**
@@ -101,22 +101,17 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function query($sql)
 	{
-		$res = oci_parse($this->connection, $sql);
-		if ($res) {
-			oci_execute($res, $this->autocommit ? OCI_COMMIT_ON_SUCCESS : OCI_DEFAULT);
-			$err = oci_error($res);
-			if ($err) {
-				throw new DibiDriverException($err['message'], $err['code'], $sql);
+		$this->affectedRows = FALSE;
+		$res = @odbc_exec($this->connection, $sql); // intentionally @
 
-			} elseif (is_resource($res)) {
-				return $this->createResultDriver($res);
-			}
-		} else {
-			$err = oci_error($this->connection);
-			throw new DibiDriverException($err['message'], $err['code'], $sql);
+		if ($res === FALSE) {
+			throw new DibiDriverException(odbc_errormsg($this->connection) . ' ' . odbc_error($this->connection), 0, $sql);
+
+		} elseif (is_resource($res)) {
+			$this->affectedRows = odbc_num_rows($res);
+			return $this->createResultDriver($res);
 		}
 	}
-
 
 
 	/**
@@ -125,9 +120,8 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function getAffectedRows()
 	{
-		throw new DibiNotImplementedException;
+		return $this->affectedRows;
 	}
-
 
 
 	/**
@@ -136,22 +130,22 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function getInsertId($sequence)
 	{
-		$row = $this->query("SELECT $sequence.CURRVAL AS ID FROM DUAL")->fetch(TRUE);
-		return isset($row['ID']) ? (int) $row['ID'] : FALSE;
+		throw new DibiNotSupportedException('ODBC does not support autoincrementing.');
 	}
-
 
 
 	/**
 	 * Begins a transaction (if supported).
 	 * @param  string  optional savepoint name
 	 * @return void
+	 * @throws DibiDriverException
 	 */
 	public function begin($savepoint = NULL)
 	{
-		$this->autocommit = FALSE;
+		if (!odbc_autocommit($this->connection, FALSE)) {
+			throw new DibiDriverException(odbc_errormsg($this->connection) . ' ' . odbc_error($this->connection));
+		}
 	}
-
 
 
 	/**
@@ -162,13 +156,11 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function commit($savepoint = NULL)
 	{
-		if (!oci_commit($this->connection)) {
-			$err = oci_error($this->connection);
-			throw new DibiDriverException($err['message'], $err['code']);
+		if (!odbc_commit($this->connection)) {
+			throw new DibiDriverException(odbc_errormsg($this->connection) . ' ' . odbc_error($this->connection));
 		}
-		$this->autocommit = TRUE;
+		odbc_autocommit($this->connection, TRUE);
 	}
-
 
 
 	/**
@@ -179,13 +171,21 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function rollback($savepoint = NULL)
 	{
-		if (!oci_rollback($this->connection)) {
-			$err = oci_error($this->connection);
-			throw new DibiDriverException($err['message'], $err['code']);
+		if (!odbc_rollback($this->connection)) {
+			throw new DibiDriverException(odbc_errormsg($this->connection) . ' ' . odbc_error($this->connection));
 		}
-		$this->autocommit = TRUE;
+		odbc_autocommit($this->connection, TRUE);
 	}
 
+
+	/**
+	 * Is in transaction?
+	 * @return bool
+	 */
+	public function inTransaction()
+	{
+		return !odbc_autocommit($this->connection);
+	}
 
 
 	/**
@@ -198,7 +198,6 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	}
 
 
-
 	/**
 	 * Returns the connection reflector.
 	 * @return IDibiReflector
@@ -207,7 +206,6 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	{
 		return $this;
 	}
-
 
 
 	/**
@@ -223,9 +221,7 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	}
 
 
-
 	/********************* SQL ****************d*g**/
-
 
 
 	/**
@@ -238,28 +234,26 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	public function escape($value, $type)
 	{
 		switch ($type) {
-		case dibi::TEXT:
-		case dibi::BINARY:
-			return "'" . str_replace("'", "''", $value) . "'"; // TODO: not tested
+			case dibi::TEXT:
+			case dibi::BINARY:
+				return "'" . str_replace("'", "''", $value) . "'";
 
-		case dibi::IDENTIFIER:
-			// @see http://download.oracle.com/docs/cd/B10500_01/server.920/a96540/sql_elements9a.htm
-			return '"' . str_replace('"', '""', $value) . '"';
+			case dibi::IDENTIFIER:
+				return '[' . str_replace(array('[', ']'), array('[[', ']]'), $value) . ']';
 
-		case dibi::BOOL:
-			return $value ? 1 : 0;
+			case dibi::BOOL:
+				return $value ? 1 : 0;
 
-		case dibi::DATE:
-			return $value instanceof DateTime ? $value->format($this->fmtDate) : date($this->fmtDate, $value);
+			case dibi::DATE:
+				return $value instanceof DateTime ? $value->format("#m/d/Y#") : date("#m/d/Y#", $value);
 
-		case dibi::DATETIME:
-			return $value instanceof DateTime ? $value->format($this->fmtDateTime) : date($this->fmtDateTime, $value);
+			case dibi::DATETIME:
+				return $value instanceof DateTime ? $value->format("#m/d/Y H:i:s#") : date("#m/d/Y H:i:s#", $value);
 
-		default:
-			throw new InvalidArgumentException('Unsupported type.');
+			default:
+				throw new InvalidArgumentException('Unsupported type.');
 		}
 	}
-
 
 
 	/**
@@ -270,11 +264,9 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function escapeLike($value, $pos)
 	{
-		$value = addcslashes(str_replace('\\', '\\\\', $value), "\x00\\%_");
-		$value = str_replace("'", "''", $value);
+		$value = strtr($value, array("'" => "''", '%' => '[%]', '_' => '[_]', '[' => '[[]'));
 		return ($pos <= 0 ? "'%" : "'") . $value . ($pos >= 0 ? "%'" : "'");
 	}
-
 
 
 	/**
@@ -293,29 +285,24 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	}
 
 
-
 	/**
 	 * Injects LIMIT/OFFSET to the SQL query.
-	 * @param  string &$sql  The SQL query that will be modified.
-	 * @param  int $limit
-	 * @param  int $offset
 	 * @return void
 	 */
-	public function applyLimit(&$sql, $limit, $offset)
+	public function applyLimit(& $sql, $limit, $offset)
 	{
-		if ($offset > 0) {
-			// see http://www.oracle.com/technology/oramag/oracle/06-sep/o56asktom.html
-			$sql = 'SELECT * FROM (SELECT t.*, ROWNUM AS "__rnum" FROM (' . $sql . ') t ' . ($limit >= 0 ? 'WHERE ROWNUM <= ' . ((int) $offset + (int) $limit) : '') . ') WHERE "__rnum" > '. (int) $offset;
+		// offset support is missing
+		if ($limit >= 0) {
+			$sql = 'SELECT TOP ' . (int) $limit . ' * FROM (' . $sql . ')';
+		}
 
-		} elseif ($limit >= 0) {
-			$sql = 'SELECT * FROM (' . $sql . ') WHERE ROWNUM <= ' . (int) $limit;
+		if ($offset) {
+			throw new DibiNotSupportedException('Offset is not implemented in driver odbc.');
 		}
 	}
 
 
-
 	/********************* result set ****************d*g**/
-
 
 
 	/**
@@ -328,16 +315,15 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	}
 
 
-
 	/**
 	 * Returns the number of rows in a result set.
 	 * @return int
 	 */
 	public function getRowCount()
 	{
-		throw new DibiNotSupportedException('Row count is not available for unbuffered queries.');
+		// will return -1 with many drivers :-(
+		return odbc_num_rows($this->resultSet);
 	}
-
 
 
 	/**
@@ -347,9 +333,19 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function fetch($assoc)
 	{
-		return oci_fetch_array($this->resultSet, ($assoc ? OCI_ASSOC : OCI_NUM) | OCI_RETURN_NULLS);
+		if ($assoc) {
+			return odbc_fetch_array($this->resultSet, ++$this->row);
+		} else {
+			$set = $this->resultSet;
+			if (!odbc_fetch_row($set, ++$this->row)) {
+				return FALSE;
+			}
+			$count = odbc_num_fields($set);
+			$cols = array();
+			for ($i = 1; $i <= $count; $i++) $cols[] = odbc_result($set, $i);
+			return $cols;
+		}
 	}
-
 
 
 	/**
@@ -359,9 +355,9 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function seek($row)
 	{
-		throw new DibiNotImplementedException;
+		$this->row = $row;
+		return TRUE;
 	}
-
 
 
 	/**
@@ -370,10 +366,9 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function free()
 	{
-		oci_free_statement($this->resultSet);
+		odbc_free_result($this->resultSet);
 		$this->resultSet = NULL;
 	}
-
 
 
 	/**
@@ -382,19 +377,18 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function getResultColumns()
 	{
-		$count = oci_num_fields($this->resultSet);
+		$count = odbc_num_fields($this->resultSet);
 		$columns = array();
 		for ($i = 1; $i <= $count; $i++) {
 			$columns[] = array(
-				'name' => oci_field_name($this->resultSet, $i),
-				'table' => NULL,
-				'fullname' => oci_field_name($this->resultSet, $i),
-				'nativetype'=> oci_field_type($this->resultSet, $i),
+				'name'      => odbc_field_name($this->resultSet, $i),
+				'table'     => NULL,
+				'fullname'  => odbc_field_name($this->resultSet, $i),
+				'nativetype'=> odbc_field_type($this->resultSet, $i),
 			);
 		}
 		return $columns;
 	}
-
 
 
 	/**
@@ -408,9 +402,7 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	}
 
 
-
 	/********************* IDibiReflector ****************d*g**/
-
 
 
 	/**
@@ -419,19 +411,19 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function getTables()
 	{
-		$res = $this->query('SELECT * FROM cat');
+		$res = odbc_tables($this->connection);
 		$tables = array();
-		while ($row = $res->fetch(FALSE)) {
-			if ($row[1] === 'TABLE' || $row[1] === 'VIEW') {
+		while ($row = odbc_fetch_array($res)) {
+			if ($row['TABLE_TYPE'] === 'TABLE' || $row['TABLE_TYPE'] === 'VIEW') {
 				$tables[] = array(
-					'name' => $row[0],
-					'view' => $row[1] === 'VIEW',
+					'name' => $row['TABLE_NAME'],
+					'view' => $row['TABLE_TYPE'] === 'VIEW',
 				);
 			}
 		}
+		odbc_free_result($res);
 		return $tables;
 	}
-
 
 
 	/**
@@ -441,9 +433,23 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function getColumns($table)
 	{
-		throw new DibiNotImplementedException;
+		$res = odbc_columns($this->connection);
+		$columns = array();
+		while ($row = odbc_fetch_array($res)) {
+			if ($row['TABLE_NAME'] === $table) {
+				$columns[] = array(
+					'name' => $row['COLUMN_NAME'],
+					'table' => $table,
+					'nativetype' => $row['TYPE_NAME'],
+					'size' => $row['COLUMN_SIZE'],
+					'nullable' => (bool) $row['NULLABLE'],
+					'default' => $row['COLUMN_DEF'],
+				);
+			}
+		}
+		odbc_free_result($res);
+		return $columns;
 	}
-
 
 
 	/**
@@ -455,7 +461,6 @@ class DibiOracleDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	{
 		throw new DibiNotImplementedException;
 	}
-
 
 
 	/**

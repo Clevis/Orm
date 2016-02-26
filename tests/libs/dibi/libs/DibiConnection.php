@@ -10,7 +10,6 @@
  */
 
 
-
 /**
  * dibi connection.
  *
@@ -43,7 +42,6 @@ class DibiConnection extends DibiObject
 
 	/** @var DibiHashMap Substitutes for identifiers */
 	private $substitutes;
-
 
 
 	/**
@@ -89,10 +87,10 @@ class DibiConnection extends DibiObject
 			$config['driver'] = dibi::$defaultDriver;
 		}
 
-		$driver = preg_replace('#[^a-z0-9_]#', '_', strtolower($config['driver']));
-		$class = "Dibi" . $driver . "Driver";
+		$class = preg_replace(array('#\W#', '#sql#'), array('_', 'Sql'), ucfirst(strtolower($config['driver'])));
+		$class = "Dibi{$class}Driver";
 		if (!class_exists($class, FALSE)) {
-			include_once dirname(__FILE__) . "/../drivers/$driver.php";
+			include_once dirname(__FILE__) . "/../drivers/$class.php";
 
 			if (!class_exists($class, FALSE)) {
 				throw new DibiException("Unable to create instance of dibi driver '$class'.");
@@ -139,7 +137,6 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/**
 	 * Automatically frees the resources allocated for this result set.
 	 * @return void
@@ -149,7 +146,6 @@ class DibiConnection extends DibiObject
 		// disconnects and rolls back transaction - do not rely on auto-disconnect and rollback!
 		$this->connected && $this->driver->getResource() && $this->disconnect();
 	}
-
 
 
 	/**
@@ -171,7 +167,6 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/**
 	 * Disconnects from a database.
 	 * @return void
@@ -183,7 +178,6 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/**
 	 * Returns TRUE when connection was established.
 	 * @return bool
@@ -192,7 +186,6 @@ class DibiConnection extends DibiObject
 	{
 		return $this->connected;
 	}
-
 
 
 	/**
@@ -216,7 +209,6 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/**
 	 * Apply configuration alias or default values.
 	 * @param  array  connect configuration
@@ -224,17 +216,18 @@ class DibiConnection extends DibiObject
 	 * @param  string alias key
 	 * @return void
 	 */
-	public static function alias(&$config, $key, $alias)
+	public static function alias(& $config, $key, $alias)
 	{
 		$foo = & $config;
-		foreach (explode('|', $key) as $key) $foo = & $foo[$key];
+		foreach (explode('|', $key) as $key) {
+			$foo = & $foo[$key];
+		}
 
 		if (!isset($foo) && isset($config[$alias])) {
 			$foo = $config[$alias];
 			unset($config[$alias]);
 		}
 	}
-
 
 
 	/**
@@ -246,7 +239,6 @@ class DibiConnection extends DibiObject
 		$this->connected || $this->connect();
 		return $this->driver;
 	}
-
 
 
 	/**
@@ -262,7 +254,6 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/**
 	 * Generates SQL query.
 	 * @param  array|mixed      one or more arguments
@@ -274,7 +265,6 @@ class DibiConnection extends DibiObject
 		$args = func_get_args();
 		return $this->translateArgs($args);
 	}
-
 
 
 	/**
@@ -300,7 +290,6 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/**
 	 * Generates (translates) and returns SQL query as DibiDataSource.
 	 * @param  array|mixed      one or more arguments
@@ -312,7 +301,6 @@ class DibiConnection extends DibiObject
 		$args = func_get_args();
 		return new DibiDataSource($this->translateArgs($args), $this);
 	}
-
 
 
 	/**
@@ -327,7 +315,6 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/**
 	 * Executes the SQL query.
 	 * @param  string           SQL statement.
@@ -338,9 +325,8 @@ class DibiConnection extends DibiObject
 	{
 		$this->connected || $this->connect();
 
-		$event = $this->onEvent ? new DibiEvent($this, DibiEvent::QUERY, $sql) : NULL;
-		dibi::$numOfQueries++;
 		dibi::$sql = $sql;
+		$event = $this->onEvent ? new DibiEvent($this, DibiEvent::QUERY, $sql) : NULL;
 		try {
 			$res = $this->driver->query($sql);
 
@@ -360,7 +346,6 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/**
 	 * Gets the number of affected rows by the last INSERT, UPDATE or DELETE query.
 	 * @return int  number of rows
@@ -370,10 +355,11 @@ class DibiConnection extends DibiObject
 	{
 		$this->connected || $this->connect();
 		$rows = $this->driver->getAffectedRows();
-		if (!is_int($rows) || $rows < 0) throw new DibiException('Cannot retrieve number of affected rows.');
+		if (!is_int($rows) || $rows < 0) {
+			throw new DibiException('Cannot retrieve number of affected rows.');
+		}
 		return $rows;
 	}
-
 
 
 	/**
@@ -387,7 +373,6 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/**
 	 * Retrieves the ID generated for an AUTO_INCREMENT column by the previous INSERT query.
 	 * @param  string     optional sequence name
@@ -398,10 +383,11 @@ class DibiConnection extends DibiObject
 	{
 		$this->connected || $this->connect();
 		$id = $this->driver->getInsertId($sequence);
-		if ($id < 1) throw new DibiException('Cannot retrieve last generated ID.');
+		if ($id < 1) {
+			throw new DibiException('Cannot retrieve last generated ID.');
+		}
 		return (int) $id;
 	}
-
 
 
 	/**
@@ -414,7 +400,6 @@ class DibiConnection extends DibiObject
 	{
 		return $this->getInsertId($sequence);
 	}
-
 
 
 	/**
@@ -437,7 +422,6 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/**
 	 * Commits statements in a transaction.
 	 * @param  string  optional savepoint name
@@ -456,7 +440,6 @@ class DibiConnection extends DibiObject
 			throw $e;
 		}
 	}
-
 
 
 	/**
@@ -479,7 +462,6 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/**
 	 * Result set factory.
 	 * @param  IDibiResultDriver
@@ -493,9 +475,7 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/********************* fluent SQL builders ****************d*g**/
-
 
 
 	/**
@@ -507,7 +487,6 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/**
 	 * @param  string    column name
 	 * @return DibiFluent
@@ -517,7 +496,6 @@ class DibiConnection extends DibiObject
 		$args = func_get_args();
 		return $this->command()->__call('select', $args);
 	}
-
 
 
 	/**
@@ -532,7 +510,6 @@ class DibiConnection extends DibiObject
 		}
 		return $this->command()->update('%n', $table)->set($args);
 	}
-
 
 
 	/**
@@ -552,7 +529,6 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/**
 	 * @param  string   table
 	 * @return DibiFluent
@@ -563,9 +539,7 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/********************* substitutions ****************d*g**/
-
 
 
 	/**
@@ -578,7 +552,6 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/**
 	 * Provides substitution.
 	 * @return string
@@ -587,7 +560,6 @@ class DibiConnection extends DibiObject
 	{
 		return strpos($value, ':') === FALSE ? $value : preg_replace_callback('#:([^:\s]*):#', array($this, 'subCb'), $value);
 	}
-
 
 
 	/**
@@ -599,9 +571,7 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/********************* shortcuts ****************d*g**/
-
 
 
 	/**
@@ -617,7 +587,6 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/**
 	 * Executes SQL query and fetch results - shortcut for query() & fetchAll().
 	 * @param  array|mixed    one or more arguments
@@ -629,7 +598,6 @@ class DibiConnection extends DibiObject
 		$args = func_get_args();
 		return $this->query($args)->fetchAll();
 	}
-
 
 
 	/**
@@ -645,7 +613,6 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/**
 	 * Executes SQL query and fetch pairs - shortcut for query() & fetchPairs().
 	 * @param  array|mixed    one or more arguments
@@ -659,9 +626,7 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/********************* misc ****************d*g**/
-
 
 
 	/**
@@ -690,10 +655,13 @@ class DibiConnection extends DibiObject
 				$count++;
 			}
 		}
+		if (trim($sql) !== '') {
+			$this->driver->query($sql);
+			$count++;
+		}
 		fclose($handle);
 		return $count;
 	}
-
 
 
 	/**
@@ -707,7 +675,6 @@ class DibiConnection extends DibiObject
 	}
 
 
-
 	/**
 	 * Prevents unserialization.
 	 */
@@ -715,7 +682,6 @@ class DibiConnection extends DibiObject
 	{
 		throw new DibiNotSupportedException('You cannot serialize or unserialize ' . $this->getClass() . ' instances.');
 	}
-
 
 
 	/**

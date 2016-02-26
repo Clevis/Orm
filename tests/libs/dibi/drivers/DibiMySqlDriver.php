@@ -10,11 +10,11 @@
  */
 
 
-require_once dirname(__FILE__) . '/mysql.reflector.php';
+require_once dirname(__FILE__) . '/DibiMySqlReflector.php';
 
 
 /**
- * The dibi driver for MySQL database via improved extension.
+ * The dibi driver for MySQL database.
  *
  * Driver options:
  *   - host => the MySQL server host name
@@ -23,28 +23,27 @@ require_once dirname(__FILE__) . '/mysql.reflector.php';
  *   - username (or user)
  *   - password (or pass)
  *   - database => the database name to select
- *   - options (array) => array of driver specific constants (MYSQLI_*) and values {@see mysqli_options}
- *   - flags (int) => driver specific constants (MYSQLI_CLIENT_*) {@see mysqli_real_connect}
+ *   - flags (int) => driver specific constants (MYSQL_CLIENT_*)
  *   - charset => character encoding to set (default is utf8)
  *   - persistent (bool) => try to find a persistent link?
  *   - unbuffered (bool) => sends query without fetching and buffering the result rows automatically?
  *   - sqlmode => see http://dev.mysql.com/doc/refman/5.0/en/server-sql-mode.html
- *   - resource (mysqli) => existing connection resource
+ *   - resource (resource) => existing connection resource
  *   - lazy, profiler, result, substitutes, ... => see DibiConnection options
  *
  * @author     David Grudl
  * @package    dibi\drivers
  */
-class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDriver
+class DibiMySqlDriver extends DibiObject implements IDibiDriver, IDibiResultDriver
 {
 	const ERROR_ACCESS_DENIED = 1045;
 	const ERROR_DUPLICATE_ENTRY = 1062;
 	const ERROR_DATA_TRUNCATED = 1265;
 
-	/** @var mysqli  Connection resource */
+	/** @var resource  Connection resource */
 	private $connection;
 
-	/** @var mysqli_result  Resultset resource */
+	/** @var resource  Resultset resource */
 	private $resultSet;
 
 	/** @var bool */
@@ -54,17 +53,15 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	private $buffered;
 
 
-
 	/**
 	 * @throws DibiNotSupportedException
 	 */
 	public function __construct()
 	{
-		if (!extension_loaded('mysqli')) {
-			throw new DibiNotSupportedException("PHP extension 'mysqli' is not loaded.");
+		if (!extension_loaded('mysql')) {
+			throw new DibiNotSupportedException("PHP extension 'mysql' is not loaded.");
 		}
 	}
-
 
 
 	/**
@@ -72,59 +69,64 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 * @return void
 	 * @throws DibiException
 	 */
-	public function connect(array &$config)
+	public function connect(array & $config)
 	{
-		mysqli_report(MYSQLI_REPORT_OFF);
 		if (isset($config['resource'])) {
 			$this->connection = $config['resource'];
 
 		} else {
 			// default values
-			if (!isset($config['charset'])) $config['charset'] = 'utf8';
-			if (!isset($config['username'])) $config['username'] = ini_get('mysqli.default_user');
-			if (!isset($config['password'])) $config['password'] = ini_get('mysqli.default_pw');
-			if (!isset($config['socket'])) $config['socket'] = ini_get('mysqli.default_socket');
-			if (!isset($config['port'])) $config['port'] = NULL;
+			DibiConnection::alias($config, 'flags', 'options');
+			$config += array(
+				'charset' => 'utf8',
+				'timezone' => date('P'),
+				'username' => ini_get('mysql.default_user'),
+				'password' => ini_get('mysql.default_password'),
+			);
 			if (!isset($config['host'])) {
-				$host = ini_get('mysqli.default_host');
+				$host = ini_get('mysql.default_host');
 				if ($host) {
 					$config['host'] = $host;
-					$config['port'] = ini_get('mysqli.default_port');
+					$config['port'] = ini_get('mysql.default_port');
 				} else {
-					$config['host'] = NULL;
-					$config['port'] = NULL;
-				}
-			}
-
-			$foo = & $config['flags'];
-			$foo = & $config['database'];
-
-			$this->connection = mysqli_init();
-			if (isset($config['options'])) {
-				if (is_scalar($config['options'])) {
-					$config['flags'] = $config['options']; // back compatibility
-					trigger_error(__CLASS__ . ": configuration item 'options' must be array; for constants MYSQLI_CLIENT_* use 'flags'.", E_USER_NOTICE);
-				} else {
-					foreach ((array) $config['options'] as $key => $value) {
-						mysqli_options($this->connection, $key, $value);
+					if (!isset($config['socket'])) {
+						$config['socket'] = ini_get('mysql.default_socket');
 					}
+					$config['host'] = NULL;
 				}
 			}
-			@mysqli_real_connect($this->connection, (empty($config['persistent']) ? '' : 'p:') . $config['host'], $config['username'], $config['password'], $config['database'], $config['port'], $config['socket'], $config['flags']); // intentionally @
 
-			if ($errno = mysqli_connect_errno()) {
-				throw new DibiDriverException(mysqli_connect_error(), $errno);
+			if (empty($config['socket'])) {
+				$host = $config['host'] . (empty($config['port']) ? '' : ':' . $config['port']);
+			} else {
+				$host = ':' . $config['socket'];
 			}
+
+			if (empty($config['persistent'])) {
+				$this->connection = @mysql_connect($host, $config['username'], $config['password'], TRUE, $config['flags']); // intentionally @
+			} else {
+				$this->connection = @mysql_pconnect($host, $config['username'], $config['password'], $config['flags']); // intentionally @
+			}
+		}
+
+		if (!is_resource($this->connection)) {
+			throw new DibiDriverException(mysql_error(), mysql_errno());
 		}
 
 		if (isset($config['charset'])) {
 			$ok = FALSE;
-			if (version_compare(PHP_VERSION , '5.1.5', '>=')) {
-				// affects the character set used by mysql_real_escape_string() (was added in MySQL 5.0.7 and PHP 5.0.5, fixed in PHP 5.1.5)
-				$ok = @mysqli_set_charset($this->connection, $config['charset']); // intentionally @
+			if (function_exists('mysql_set_charset')) {
+				// affects the character set used by mysql_real_escape_string() (was added in MySQL 5.0.7 and PHP 5.2.3)
+				$ok = @mysql_set_charset($config['charset'], $this->connection); // intentionally @
 			}
 			if (!$ok) {
 				$this->query("SET NAMES '$config[charset]'");
+			}
+		}
+
+		if (isset($config['database'])) {
+			if (!@mysql_select_db($config['database'], $this->connection)) { // intentionally @
+				throw new DibiDriverException(mysql_error($this->connection), mysql_errno($this->connection));
 			}
 		}
 
@@ -132,11 +134,12 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 			$this->query("SET sql_mode='$config[sqlmode]'");
 		}
 
-		$this->query("SET time_zone='" . date('P') . "'");
+		if (isset($config['timezone'])) {
+			$this->query("SET time_zone='$config[timezone]'");
+		}
 
 		$this->buffered = empty($config['unbuffered']);
 	}
-
 
 
 	/**
@@ -145,9 +148,8 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function disconnect()
 	{
-		mysqli_close($this->connection);
+		mysql_close($this->connection);
 	}
-
 
 
 	/**
@@ -158,16 +160,19 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function query($sql)
 	{
-		$res = @mysqli_query($this->connection, $sql, $this->buffered ? MYSQLI_STORE_RESULT : MYSQLI_USE_RESULT); // intentionally @
+		if ($this->buffered) {
+			$res = @mysql_query($sql, $this->connection); // intentionally @
+		} else {
+			$res = @mysql_unbuffered_query($sql, $this->connection); // intentionally @
+		}
 
-		if (mysqli_errno($this->connection)) {
-			throw new DibiDriverException(mysqli_error($this->connection), mysqli_errno($this->connection), $sql);
+		if (mysql_errno($this->connection)) {
+			throw new DibiDriverException(mysql_error($this->connection), mysql_errno($this->connection), $sql);
 
-		} elseif (is_object($res)) {
+		} elseif (is_resource($res)) {
 			return $this->createResultDriver($res);
 		}
 	}
-
 
 
 	/**
@@ -177,8 +182,10 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	public function getInfo()
 	{
 		$res = array();
-		preg_match_all('#(.+?): +(\d+) *#', mysqli_info($this->connection), $matches, PREG_SET_ORDER);
-		if (preg_last_error()) throw new DibiPcreException;
+		preg_match_all('#(.+?): +(\d+) *#', mysql_info($this->connection), $matches, PREG_SET_ORDER);
+		if (preg_last_error()) {
+			throw new DibiPcreException;
+		}
 
 		foreach ($matches as $m) {
 			$res[$m[1]] = (int) $m[2];
@@ -187,16 +194,14 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	}
 
 
-
 	/**
 	 * Gets the number of affected rows by the last INSERT, UPDATE or DELETE query.
 	 * @return int|FALSE  number of rows or FALSE on error
 	 */
 	public function getAffectedRows()
 	{
-		return mysqli_affected_rows($this->connection);
+		return mysql_affected_rows($this->connection);
 	}
-
 
 
 	/**
@@ -205,9 +210,8 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function getInsertId($sequence)
 	{
-		return mysqli_insert_id($this->connection);
+		return mysql_insert_id($this->connection);
 	}
-
 
 
 	/**
@@ -222,7 +226,6 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	}
 
 
-
 	/**
 	 * Commits statements in a transaction.
 	 * @param  string  optional savepoint name
@@ -233,7 +236,6 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	{
 		$this->query($savepoint ? "RELEASE SAVEPOINT $savepoint" : 'COMMIT');
 	}
-
 
 
 	/**
@@ -248,16 +250,14 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	}
 
 
-
 	/**
 	 * Returns the connection resource.
-	 * @return mysqli
+	 * @return mixed
 	 */
 	public function getResource()
 	{
-		return @$this->connection->thread_id ? $this->connection : NULL;
+		return is_resource($this->connection) ? $this->connection : NULL;
 	}
-
 
 
 	/**
@@ -270,13 +270,12 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	}
 
 
-
 	/**
 	 * Result set driver factory.
-	 * @param  mysqli_result
+	 * @param  resource
 	 * @return IDibiResultDriver
 	 */
-	public function createResultDriver(mysqli_result $resource)
+	public function createResultDriver($resource)
 	{
 		$res = clone $this;
 		$res->resultSet = $resource;
@@ -284,9 +283,7 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	}
 
 
-
 	/********************* SQL ****************d*g**/
-
 
 
 	/**
@@ -299,29 +296,35 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	public function escape($value, $type)
 	{
 		switch ($type) {
-		case dibi::TEXT:
-			return "'" . mysqli_real_escape_string($this->connection, $value) . "'";
+			case dibi::TEXT:
+				if (!is_resource($this->connection)) {
+					throw new DibiException('Lost connection to server.');
+				}
+				return "'" . mysql_real_escape_string($value, $this->connection) . "'";
 
-		case dibi::BINARY:
-			return "_binary'" . mysqli_real_escape_string($this->connection, $value) . "'";
+			case dibi::BINARY:
+				if (!is_resource($this->connection)) {
+					throw new DibiException('Lost connection to server.');
+				}
+				return "_binary'" . mysql_real_escape_string($value, $this->connection) . "'";
 
-		case dibi::IDENTIFIER:
-			return '`' . str_replace('`', '``', $value) . '`';
+			case dibi::IDENTIFIER:
+				// @see http://dev.mysql.com/doc/refman/5.0/en/identifiers.html
+				return '`' . str_replace('`', '``', $value) . '`';
 
-		case dibi::BOOL:
-			return $value ? 1 : 0;
+			case dibi::BOOL:
+				return $value ? 1 : 0;
 
-		case dibi::DATE:
-			return $value instanceof DateTime ? $value->format("'Y-m-d'") : date("'Y-m-d'", $value);
+			case dibi::DATE:
+				return $value instanceof DateTime ? $value->format("'Y-m-d'") : date("'Y-m-d'", $value);
 
-		case dibi::DATETIME:
-			return $value instanceof DateTime ? $value->format("'Y-m-d H:i:s'") : date("'Y-m-d H:i:s'", $value);
+			case dibi::DATETIME:
+				return $value instanceof DateTime ? $value->format("'Y-m-d H:i:s'") : date("'Y-m-d H:i:s'", $value);
 
-		default:
-			throw new InvalidArgumentException('Unsupported type.');
+			default:
+				throw new InvalidArgumentException('Unsupported type.');
 		}
 	}
-
 
 
 	/**
@@ -335,7 +338,6 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 		$value = addcslashes(str_replace('\\', '\\\\', $value), "\x00\n\r\\'%_");
 		return ($pos <= 0 ? "'%" : "'") . $value . ($pos >= 0 ? "%'" : "'");
 	}
-
 
 
 	/**
@@ -354,27 +356,21 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	}
 
 
-
 	/**
 	 * Injects LIMIT/OFFSET to the SQL query.
-	 * @param  string &$sql  The SQL query that will be modified.
-	 * @param  int $limit
-	 * @param  int $offset
 	 * @return void
 	 */
-	public function applyLimit(&$sql, $limit, $offset)
+	public function applyLimit(& $sql, $limit, $offset)
 	{
-		if ($limit < 0 && $offset < 1) return;
-
-		// see http://dev.mysql.com/doc/refman/5.0/en/select.html
-		$sql .= ' LIMIT ' . ($limit < 0 ? '18446744073709551615' : (int) $limit)
-			. ($offset > 0 ? ' OFFSET ' . (int) $offset : '');
+		if ($limit >= 0 || $offset > 0) {
+			// see http://dev.mysql.com/doc/refman/5.0/en/select.html
+			$sql .= ' LIMIT ' . ($limit < 0 ? '18446744073709551615' : (int) $limit)
+				. ($offset > 0 ? ' OFFSET ' . (int) $offset : '');
+		}
 	}
 
 
-
 	/********************* result set ****************d*g**/
-
 
 
 	/**
@@ -383,9 +379,8 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function __destruct()
 	{
-		$this->autoFree && $this->getResultResource() && @$this->free();
+		$this->autoFree && $this->getResultResource() && $this->free();
 	}
-
 
 
 	/**
@@ -397,9 +392,8 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 		if (!$this->buffered) {
 			throw new DibiNotSupportedException('Row count is not available for unbuffered queries.');
 		}
-		return mysqli_num_rows($this->resultSet);
+		return mysql_num_rows($this->resultSet);
 	}
-
 
 
 	/**
@@ -409,9 +403,8 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function fetch($assoc)
 	{
-		return mysqli_fetch_array($this->resultSet, $assoc ? MYSQLI_ASSOC : MYSQLI_NUM);
+		return mysql_fetch_array($this->resultSet, $assoc ? MYSQL_ASSOC : MYSQL_NUM);
 	}
-
 
 
 	/**
@@ -425,9 +418,9 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 		if (!$this->buffered) {
 			throw new DibiNotSupportedException('Cannot seek an unbuffered result set.');
 		}
-		return mysqli_data_seek($this->resultSet, $row);
-	}
 
+		return mysql_data_seek($this->resultSet, $row);
+	}
 
 
 	/**
@@ -436,10 +429,9 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function free()
 	{
-		mysqli_free_result($this->resultSet);
+		mysql_free_result($this->resultSet);
 		$this->resultSet = NULL;
 	}
-
 
 
 	/**
@@ -448,26 +440,15 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	 */
 	public function getResultColumns()
 	{
-		static $types;
-		if (empty($types)) {
-			$consts = get_defined_constants(TRUE);
-			foreach ($consts['mysqli'] as $key => $value) {
-				if (strncmp($key, 'MYSQLI_TYPE_', 12) === 0) {
-					$types[$value] = substr($key, 12);
-				}
-			}
-			$types[MYSQLI_TYPE_TINY] = $types[MYSQLI_TYPE_SHORT] = $types[MYSQLI_TYPE_LONG] = 'INT';
-		}
-
-		$count = mysqli_num_fields($this->resultSet);
+		$count = mysql_num_fields($this->resultSet);
 		$columns = array();
 		for ($i = 0; $i < $count; $i++) {
-			$row = (array) mysqli_fetch_field_direct($this->resultSet, $i);
+			$row = (array) mysql_fetch_field($this->resultSet, $i);
 			$columns[] = array(
 				'name' => $row['name'],
-				'table' => $row['orgtable'],
+				'table' => $row['table'],
 				'fullname' => $row['table'] ? $row['table'] . '.' . $row['name'] : $row['name'],
-				'nativetype' => $types[$row['type']],
+				'nativetype' => strtoupper($row['type']),
 				'vendor' => $row,
 			);
 		}
@@ -475,15 +456,14 @@ class DibiMySqliDriver extends DibiObject implements IDibiDriver, IDibiResultDri
 	}
 
 
-
 	/**
 	 * Returns the result set resource.
-	 * @return mysqli_result
+	 * @return mixed
 	 */
 	public function getResultResource()
 	{
 		$this->autoFree = FALSE;
-		return @$this->resultSet->type === NULL ? NULL : $this->resultSet;
+		return is_resource($this->resultSet) ? $this->resultSet : NULL;
 	}
 
 }

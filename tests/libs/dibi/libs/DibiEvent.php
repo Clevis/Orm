@@ -10,7 +10,6 @@
  */
 
 
-
 /**
  * Profiler & logger event.
  *
@@ -54,7 +53,6 @@ class DibiEvent
 	public $source;
 
 
-
 	public function __construct(DibiConnection $connection, $type, $sql = NULL)
 	{
 		$this->connection = $connection;
@@ -80,8 +78,9 @@ class DibiEvent
 		}
 
 		dibi::$elapsedTime = FALSE;
+		dibi::$numOfQueries++;
+		dibi::$sql = $sql;
 	}
-
 
 
 	public function done($result = NULL)

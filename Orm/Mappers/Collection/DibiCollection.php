@@ -54,7 +54,7 @@ class DibiCollection extends BaseDibiCollection
 	{
 		if ($this->count === NULL)
 		{
-			$this->count = $this->getResult()->count();
+			$this->count = $this->getResultWrapper()->count();
 		}
 		return $this->count;
 	}
@@ -164,8 +164,7 @@ class DibiCollection extends BaseDibiCollection
 	{
 		static $translate;
 		if ($translate === NULL)
-		{
-			// @codeCoverageIgnoreStart
+		{ // @codeCoverageIgnoreStart
 			$translate = method_exists($this->getConnection(), 'translate') ? 'translate' : 'sql';
 		}	// @codeCoverageIgnoreEnd
 		$args = func_get_args();

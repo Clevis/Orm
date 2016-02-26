@@ -37,11 +37,11 @@ class Callback_is_Test extends TestCase
 	{
 		if (PHP_VERSION_ID < 50300)
 		{
-			$this->markTestIncomplete('php 5.2 (namespace)');
+			$this->markTestSkipped('php 5.2 (namespace)');
 		}
 		if (class_exists('Nette' . '\\' . 'Callback'))
 		{
-			$this->markTestIncomplete('nette php 5.3');
+			$this->markTestSkipped('nette php 5.3');
 		}
 		eval('name' . 'space Nette; class Call' . 'back {}');
 		$c = 'Nette' . '\\' . 'Callback';
@@ -55,7 +55,7 @@ class Callback_is_Test extends TestCase
 	{
 		if (class_exists('Callback'))
 		{
-			$this->markTestIncomplete('nette php 5.2');
+			$this->markTestSkipped('nette php 5.2');
 		}
 		eval('class Call' . 'back {}');
 		$c = '\Callback';
@@ -79,7 +79,7 @@ class Callback_is_Test extends TestCase
 
 	public function testSeparate()
 	{
-		if (NETTE_PACKAGE !== '5.2' AND NETTE_PACKAGE !== 'PHP 5.2')
+		if (!defined('NETTE_PACKAGE') OR (NETTE_PACKAGE !== '5.2' AND NETTE_PACKAGE !== 'PHP 5.2')) // nette >=2.1 nema konstantu
 		{
 			$this->assertFalse(class_exists('Callback'));
 		}
