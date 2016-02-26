@@ -29,7 +29,7 @@ abstract class FileMapper extends ArrayMapper
 		if (!self::$isStreamRegistered)
 		{
 			$wrapers = stream_get_wrappers();
-			if (!in_array('safe', $wrapers, true))
+			if (!in_array('nette.safe', $wrapers, true))
 			{
 				throw new NotSupportedException("Stream 'safe' is not registered; use Nette\\Utils\\SafeStream::register().");
 			}
@@ -48,7 +48,7 @@ abstract class FileMapper extends ArrayMapper
 		{
 			$this->saveData(array());
 		}
-		return unserialize(file_get_contents('safe://' . $path));
+		return unserialize(file_get_contents('nette.safe://' . $path));
 	}
 
 	/**
@@ -58,7 +58,7 @@ abstract class FileMapper extends ArrayMapper
 	 */
 	final protected function saveData(array $data)
 	{
-		file_put_contents('safe://' . $this->getFilePath(), serialize($data));
+		file_put_contents('nette.safe://' . $this->getFilePath(), serialize($data));
 	}
 
 	/**
